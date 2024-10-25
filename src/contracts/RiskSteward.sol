@@ -135,7 +135,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to validate the caps update
    * @param capsUpdate list containing the new supply, borrow caps of the assets
    */
-  function _validateCapsUpdate(IEngine.CapsUpdate[] calldata capsUpdate) internal view {
+  function _validateCapsUpdate(IEngine.CapsUpdate[] calldata capsUpdate) internal view virtual {
     if (capsUpdate.length == 0) revert NoZeroUpdates();
 
     for (uint256 i = 0; i < capsUpdate.length; i++) {
@@ -183,7 +183,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to validate the interest rates update
    * @param ratesUpdate list containing the new interest rates params of the assets
    */
-  function _validateRatesUpdate(IEngine.RateStrategyUpdate[] calldata ratesUpdate) internal view {
+  function _validateRatesUpdate(IEngine.RateStrategyUpdate[] calldata ratesUpdate) internal view virtual {
     if (ratesUpdate.length == 0) revert NoZeroUpdates();
 
     for (uint256 i = 0; i < ratesUpdate.length; i++) {
@@ -255,7 +255,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    */
   function _validateCollateralsUpdate(
     IEngine.CollateralUpdate[] calldata collateralUpdates
-  ) internal view {
+  ) internal view virtual {
     if (collateralUpdates.length == 0) revert NoZeroUpdates();
 
     for (uint256 i = 0; i < collateralUpdates.length; i++) {
@@ -346,7 +346,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to validate the oracle price caps update
    * @param priceCapsUpdate list containing the new price cap params for the oracles
    */
-  function _validatePriceCapUpdate(PriceCapLstUpdate[] calldata priceCapsUpdate) internal view {
+  function _validatePriceCapUpdate(PriceCapLstUpdate[] calldata priceCapsUpdate) internal view virtual {
     if (priceCapsUpdate.length == 0) revert NoZeroUpdates();
 
     for (uint256 i = 0; i < priceCapsUpdate.length; i++) {
@@ -386,7 +386,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    */
   function _validatePriceCapStableUpdate(
     PriceCapStableUpdate[] calldata priceCapsUpdate
-  ) internal view {
+  ) internal view virtual {
     if (priceCapsUpdate.length == 0) revert NoZeroUpdates();
 
     for (uint256 i = 0; i < priceCapsUpdate.length; i++) {
@@ -416,7 +416,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to validate the risk param update is within the allowed bound and the debounce is respected
    * @param validationParam struct containing values used for validation of the risk param update
    */
-  function _validateParamUpdate(ParamUpdateValidationInput memory validationParam) internal view {
+  function _validateParamUpdate(ParamUpdateValidationInput memory validationParam) internal view virtual {
     if (validationParam.newValue == EngineFlags.KEEP_CURRENT) return;
 
     if (block.timestamp - validationParam.lastUpdated < validationParam.riskConfig.minDelay)
@@ -435,7 +435,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to update the borrow / supply caps using the config engine and updates the debounce
    * @param capsUpdate list containing the new supply, borrow caps of the assets
    */
-  function _updateCaps(IEngine.CapsUpdate[] calldata capsUpdate) internal {
+  function _updateCaps(IEngine.CapsUpdate[] calldata capsUpdate) internal virtual {
     for (uint256 i = 0; i < capsUpdate.length; i++) {
       address asset = capsUpdate[i].asset;
 
@@ -457,7 +457,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to update the interest rates params using the config engine and updates the debounce
    * @param ratesUpdate list containing the new interest rates params of the assets
    */
-  function _updateRates(IEngine.RateStrategyUpdate[] calldata ratesUpdate) internal {
+  function _updateRates(IEngine.RateStrategyUpdate[] calldata ratesUpdate) internal virtual {
     for (uint256 i = 0; i < ratesUpdate.length; i++) {
       address asset = ratesUpdate[i].asset;
 
@@ -487,7 +487,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to update the collateral side params using the config engine and updates the debounce
    * @param collateralUpdates list containing the new collateral updates of the assets
    */
-  function _updateCollateralSide(IEngine.CollateralUpdate[] calldata collateralUpdates) internal {
+  function _updateCollateralSide(IEngine.CollateralUpdate[] calldata collateralUpdates) internal virtual {
     for (uint256 i = 0; i < collateralUpdates.length; i++) {
       address asset = collateralUpdates[i].asset;
 
@@ -517,7 +517,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to update the oracle price caps update
    * @param priceCapsUpdate list containing the new price cap params for the oracles
    */
-  function _updateLstPriceCaps(PriceCapLstUpdate[] calldata priceCapsUpdate) internal {
+  function _updateLstPriceCaps(PriceCapLstUpdate[] calldata priceCapsUpdate) internal virtual {
     for (uint256 i = 0; i < priceCapsUpdate.length; i++) {
       address oracle = priceCapsUpdate[i].oracle;
 
@@ -533,7 +533,7 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice method to update the oracle stable price caps update
    * @param priceCapsUpdate list containing the new price cap values for the oracles
    */
-  function _updateStablePriceCaps(PriceCapStableUpdate[] calldata priceCapsUpdate) internal {
+  function _updateStablePriceCaps(PriceCapStableUpdate[] calldata priceCapsUpdate) internal virtual {
     for (uint256 i = 0; i < priceCapsUpdate.length; i++) {
       address oracle = priceCapsUpdate[i].oracle;
 
