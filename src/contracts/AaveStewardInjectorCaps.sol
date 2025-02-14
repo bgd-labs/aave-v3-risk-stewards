@@ -9,6 +9,7 @@ import {IAaveV3ConfigEngine as IEngine} from 'aave-v3-origin/src/contracts/exten
 import {EngineFlags} from 'aave-v3-origin/src/contracts/extensions/v3-config-engine/EngineFlags.sol';
 import {EnumerableSet} from 'openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol';
 import {Strings} from 'openzeppelin-contracts/contracts/utils/Strings.sol';
+import {IAToken} from 'aave-v3-origin/src/contracts/interfaces/IAToken.sol';
 
 /**
  * @title AaveStewardInjectorCaps
@@ -73,7 +74,7 @@ contract AaveStewardInjectorCaps is AaveStewardInjectorBase, IAaveStewardInjecto
     if (!_canUpdateBeInjected(updateRiskParams)) {
       revert UpdateCannotBeInjected();
     }
-
+    _repackCapUpdate(updateRiskParams);
     IRiskSteward(RISK_STEWARD).updateCaps(_repackCapUpdate(updateRiskParams));
     _isUpdateIdExecuted[updateRiskParams.updateId] = true;
 
@@ -134,20 +135,22 @@ contract AaveStewardInjectorCaps is AaveStewardInjectorBase, IAaveStewardInjecto
    */
   function _repackCapUpdate(
     IRiskOracle.RiskParameterUpdate memory riskParams
-  ) internal pure returns (IEngine.CapsUpdate[] memory capUpdate) {
-    capUpdate = new IEngine.CapsUpdate[](1);
+  ) internal view returns (IEngine.CapsUpdate[] memory capUpdate) {
+    address underlyingAddress = IAToken(riskParams.market).UNDERLYING_ASSET_ADDRESS();
+    uint256 capValue = abi.decode(abi.encodePacked(new bytes(32 - riskParams.newValue.length), riskParams.newValue), (uint256)) / 1e18;
 
+    capUpdate = new IEngine.CapsUpdate[](1);
     if (riskParams.updateType.equal('supplyCap')) {
       capUpdate[0] = IEngine.CapsUpdate({
-        asset: riskParams.market,
-        supplyCap: abi.decode(riskParams.newValue, (uint256)),
+        asset: underlyingAddress,
+        supplyCap: capValue,
         borrowCap: EngineFlags.KEEP_CURRENT
       });
     } else {
       capUpdate[0] = IEngine.CapsUpdate({
-        asset: riskParams.market,
+        asset: underlyingAddress,
         supplyCap: EngineFlags.KEEP_CURRENT,
-        borrowCap: abi.decode(riskParams.newValue, (uint256))
+        borrowCap: capValue
       });
     }
   }
