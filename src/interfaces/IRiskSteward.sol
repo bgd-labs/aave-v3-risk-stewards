@@ -97,22 +97,23 @@ interface IRiskSteward {
    * @param newValue the new value of the risk param
    * @param lastUpdated timestamp when the risk param was last updated by the steward
    * @param riskConfig the risk configuration containing the minimum delay and the max percent change allowed for the risk param
-   * @param isChangeRelative true, if risk param change is relative in value, false if risk param change is absolute in value
    */
   struct ParamUpdateValidationInput {
     uint256 currentValue;
     uint256 newValue;
     uint40 lastUpdated;
     RiskParamConfig riskConfig;
-    bool isChangeRelative;
   }
 
   /**
-   * @notice Struct storing the minimum delay and maximum percent change for a risk param
+   * @notice Struct storing the minimum delay and maximum change for a risk param
    */
   struct RiskParamConfig {
-    uint40 minDelay;
-    uint256 maxPercentChange;
+    uint32 minDelay;
+    bool isIncreaseRelative;
+    bool isDecreaseRelative;
+    uint104 maxIncrease;
+    uint104 maxDecrease;
   }
 
   /**

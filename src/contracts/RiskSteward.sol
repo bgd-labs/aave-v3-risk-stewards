@@ -154,8 +154,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentSupplyCap,
           newValue: capsUpdate[i].supplyCap,
           lastUpdated: _timelocks[asset].supplyCapLastUpdated,
-          riskConfig: _riskConfig.supplyCap,
-          isChangeRelative: true
+          riskConfig: _riskConfig.supplyCap
         })
       );
       _validateParamUpdate(
@@ -163,8 +162,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentBorrowCap,
           newValue: capsUpdate[i].borrowCap,
           lastUpdated: _timelocks[asset].borrowCapLastUpdated,
-          riskConfig: _riskConfig.borrowCap,
-          isChangeRelative: true
+          riskConfig: _riskConfig.borrowCap
         })
       );
     }
@@ -193,8 +191,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentOptimalUsageRatio,
           newValue: ratesUpdate[i].params.optimalUsageRatio,
           lastUpdated: _timelocks[asset].optimalUsageRatioLastUpdated,
-          riskConfig: _riskConfig.optimalUsageRatio,
-          isChangeRelative: false
+          riskConfig: _riskConfig.optimalUsageRatio
         })
       );
       _validateParamUpdate(
@@ -202,8 +199,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentBaseVariableBorrowRate,
           newValue: ratesUpdate[i].params.baseVariableBorrowRate,
           lastUpdated: _timelocks[asset].baseVariableRateLastUpdated,
-          riskConfig: _riskConfig.baseVariableBorrowRate,
-          isChangeRelative: false
+          riskConfig: _riskConfig.baseVariableBorrowRate
         })
       );
       _validateParamUpdate(
@@ -211,8 +207,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentVariableRateSlope1,
           newValue: ratesUpdate[i].params.variableRateSlope1,
           lastUpdated: _timelocks[asset].variableRateSlope1LastUpdated,
-          riskConfig: _riskConfig.variableRateSlope1,
-          isChangeRelative: false
+          riskConfig: _riskConfig.variableRateSlope1
         })
       );
       _validateParamUpdate(
@@ -220,8 +215,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentVariableRateSlope2,
           newValue: ratesUpdate[i].params.variableRateSlope2,
           lastUpdated: _timelocks[asset].variableRateSlope2LastUpdated,
-          riskConfig: _riskConfig.variableRateSlope2,
-          isChangeRelative: false
+          riskConfig: _riskConfig.variableRateSlope2
         })
       );
     }
@@ -268,8 +262,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentLtv,
           newValue: collateralUpdates[i].ltv,
           lastUpdated: _timelocks[asset].ltvLastUpdated,
-          riskConfig: _riskConfig.ltv,
-          isChangeRelative: false
+          riskConfig: _riskConfig.ltv
         })
       );
       _validateParamUpdate(
@@ -277,8 +270,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentLiquidationThreshold,
           newValue: collateralUpdates[i].liqThreshold,
           lastUpdated: _timelocks[asset].liquidationThresholdLastUpdated,
-          riskConfig: _riskConfig.liquidationThreshold,
-          isChangeRelative: false
+          riskConfig: _riskConfig.liquidationThreshold
         })
       );
       _validateParamUpdate(
@@ -286,8 +278,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentLiquidationBonus - 100_00, // as the definition is 100% + x%, and config engine takes into account x% for simplicity.
           newValue: collateralUpdates[i].liqBonus,
           lastUpdated: _timelocks[asset].liquidationBonusLastUpdated,
-          riskConfig: _riskConfig.liquidationBonus,
-          isChangeRelative: false
+          riskConfig: _riskConfig.liquidationBonus
         })
       );
       _validateParamUpdate(
@@ -295,8 +286,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentDebtCeiling / 100, // as the definition is with 2 decimals, and config engine does not take the decimals into account.
           newValue: collateralUpdates[i].debtCeiling,
           lastUpdated: _timelocks[asset].debtCeilingLastUpdated,
-          riskConfig: _riskConfig.debtCeiling,
-          isChangeRelative: true
+          riskConfig: _riskConfig.debtCeiling
         })
       );
     }
@@ -333,8 +323,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentMaxYearlyGrowthPercent,
           newValue: priceCapsUpdate[i].priceCapUpdateParams.maxYearlyRatioGrowthPercent,
           lastUpdated: _timelocks[oracle].priceCapLastUpdated,
-          riskConfig: _riskConfig.priceCapLst,
-          isChangeRelative: true
+          riskConfig: _riskConfig.priceCapLst
         })
       );
     }
@@ -363,8 +352,7 @@ contract RiskSteward is Ownable, IRiskSteward {
           currentValue: currentPriceCap.toUint256(),
           newValue: priceCapsUpdate[i].priceCap,
           lastUpdated: _timelocks[oracle].priceCapLastUpdated,
-          riskConfig: _riskConfig.priceCapStable,
-          isChangeRelative: true
+          riskConfig: _riskConfig.priceCapStable
         })
       );
     }
@@ -383,8 +371,10 @@ contract RiskSteward is Ownable, IRiskSteward {
       !_updateWithinAllowedRange(
         validationParam.currentValue,
         validationParam.newValue,
-        validationParam.riskConfig.maxPercentChange,
-        validationParam.isChangeRelative
+        validationParam.riskConfig.maxIncrease,
+        validationParam.riskConfig.maxDecrease,
+        validationParam.riskConfig.isIncreaseRelative,
+        validationParam.riskConfig.isDecreaseRelative
       )
     ) revert UpdateNotInRange();
   }
@@ -537,26 +527,39 @@ contract RiskSteward is Ownable, IRiskSteward {
    * @notice Ensures the risk param update is within the allowed range
    * @param from current risk param value
    * @param to new updated risk param value
-   * @param maxPercentChange the max percent change allowed
-   * @param isChangeRelative true, if maxPercentChange is relative in value, false if maxPercentChange
-   *        is absolute in value.
+   * @param maxIncrease the max increase change allowed
+   * @param maxDecrease the max decrease change allowed
+   * @param isIncreaseRelative true, if maxIncrease is relative in value, false if maxIncrease is absolute.
+   * @param isDecreaseRelative true, if maxDecrease is relative in value, false if maxDecrease is absolute.
    * @return bool true, if difference is within the maxPercentChange
    */
   function _updateWithinAllowedRange(
     uint256 from,
     uint256 to,
-    uint256 maxPercentChange,
-    bool isChangeRelative
+    uint256 maxIncrease,
+    uint256 maxDecrease,
+    bool isIncreaseRelative,
+    bool isDecreaseRelative
   ) internal pure returns (bool) {
-    // diff denotes the difference between the from and to values, ensuring it is a positive value always
-    uint256 diff = from > to ? from - to : to - from;
+    uint256 diff;
+    uint256 maxChange;
+    bool isChangeRelative;
 
-    // maxDiff denotes the max permitted difference on both the upper and lower bounds, if the maxPercentChange is relative in value
-    // we calculate the max permitted difference using the maxPercentChange and the from value, otherwise if the maxPercentChange is absolute in value
-    // the max permitted difference is the maxPercentChange itself
-    uint256 maxDiff = isChangeRelative ? (maxPercentChange * from) / BPS_MAX : maxPercentChange;
+    if (from < to) {
+      diff = to - from;
+      maxChange = maxIncrease;
+      isChangeRelative = isIncreaseRelative;
+    } else {
+      diff = from - to;
+      maxChange = maxDecrease;
+      isChangeRelative = isDecreaseRelative;
+    }
 
-    if (diff > maxDiff) return false;
-    return true;
+    // maxDiff denotes the max permitted difference, if the maxChange is relative in value, we
+    // calculate the max permitted difference using the maxChange and the from value, otherwise
+    // if the maxChange is absolute in value the max permitted difference is the maxChange itself
+    uint256 maxDiff = isChangeRelative ? (maxChange * from) / BPS_MAX : maxChange;
+
+    return diff <= maxDiff;
   }
 }

@@ -55,27 +55,27 @@ library DeployRiskStewards {
   function _getRiskConfig() internal pure returns (IRiskSteward.Config memory) {
     return
       IRiskSteward.Config({
-        ltv: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 25}),
+        ltv: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 25, maxDecrease: 25, isIncreaseRelative: false, isDecreaseRelative: false}),
         liquidationThreshold: IRiskSteward.RiskParamConfig({
           minDelay: 3 days,
-          maxPercentChange: 25
+          maxIncrease: 25, maxDecrease: 25, isIncreaseRelative: false, isDecreaseRelative: false
         }),
-        liquidationBonus: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 50}),
-        supplyCap: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 100_00}),
-        borrowCap: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 100_00}),
-        debtCeiling: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 20_00}),
+        liquidationBonus: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 50, maxDecrease: 50, isIncreaseRelative: false, isDecreaseRelative: false}),
+        supplyCap: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 100_00, maxDecrease: 100_00, isIncreaseRelative: true, isDecreaseRelative: true}),
+        borrowCap: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 100_00, maxDecrease: 100_00, isIncreaseRelative: true, isDecreaseRelative: true}),
+        debtCeiling: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 20_00, maxDecrease: 20_00, isIncreaseRelative: true, isDecreaseRelative: true}),
         baseVariableBorrowRate: IRiskSteward.RiskParamConfig({
           minDelay: 3 days,
-          maxPercentChange: 50
+          maxIncrease: 1_00, maxDecrease: 1_00, isIncreaseRelative: false, isDecreaseRelative: false
         }),
-        variableRateSlope1: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 50}),
+        variableRateSlope1: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 1_00, maxDecrease: 1_00, isIncreaseRelative: false, isDecreaseRelative: false}),
         variableRateSlope2: IRiskSteward.RiskParamConfig({
           minDelay: 3 days,
-          maxPercentChange: 5_00
+          maxIncrease: 20_00, maxDecrease: 20_00, isIncreaseRelative: false, isDecreaseRelative: false
         }),
-        optimalUsageRatio: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 3_00}),
-        priceCapLst: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 5_00}),
-        priceCapStable: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 50})
+        optimalUsageRatio: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 3_00, maxDecrease: 3_00, isIncreaseRelative: false, isDecreaseRelative: false}),
+        priceCapLst: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 5_00, maxDecrease: 5_00, isIncreaseRelative: true, isDecreaseRelative: true}),
+        priceCapStable: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxIncrease: 50, maxDecrease: 50, isIncreaseRelative: true, isDecreaseRelative: true})
       });
   }
 }
