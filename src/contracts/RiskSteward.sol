@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {ReserveConfiguration, DataTypes} from 'aave-v3-origin/src/contracts/protocol/libraries/configuration/ReserveConfiguration.sol';
-import {IPool} from 'aave-address-book/AaveV3.sol';
+import {IPoolDataProvider} from 'aave-address-book/AaveV3.sol';
 import {Address} from 'openzeppelin-contracts/contracts/utils/Address.sol';
 import {SafeCast} from 'openzeppelin-contracts/contracts/utils/math/SafeCast.sol';
 import {EngineFlags} from 'aave-v3-origin/src/contracts/extensions/v3-config-engine/EngineFlags.sol';
@@ -20,7 +19,6 @@ import {IPriceCapAdapterStable} from 'aave-capo/interfaces/IPriceCapAdapterStabl
  *         This contract can update the following risk params: caps, ltv, liqThreshold, liqBonus, debtCeiling, interest rates params.
  */
 contract RiskSteward is Ownable, IRiskSteward {
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
   using Address for address;
   using SafeCast for uint256;
   using SafeCast for int256;
@@ -29,7 +27,7 @@ contract RiskSteward is Ownable, IRiskSteward {
   IEngine public immutable CONFIG_ENGINE;
 
   /// @inheritdoc IRiskSteward
-  IPool public immutable POOL;
+  IPoolDataProvider public immutable POOL_DATA_PROVIDER;
 
   /// @inheritdoc IRiskSteward
   address public immutable RISK_COUNCIL;
@@ -38,7 +36,7 @@ contract RiskSteward is Ownable, IRiskSteward {
 
   Config internal _riskConfig;
 
-  mapping(bytes20 id => Debounce) internal _timelocks;
+  mapping(address => Debounce) internal _timelocks;
 
   mapping(address => bool) internal _restrictedAddresses;
 
@@ -51,21 +49,19 @@ contract RiskSteward is Ownable, IRiskSteward {
   }
 
   /**
-   * @param pool The aave pool to be controlled by the steward
+   * @param poolDataProvider The pool data provider of the pool to be controlled by the steward
    * @param engine the config engine to be used by the steward
    * @param riskCouncil the safe address of the council being able to interact with the steward
-   * @param owner the owner of the risk steward being able to set configs and mark items as restricted
    * @param riskConfig the risk configuration to setup for each individual risk param
    */
   constructor(
-    address pool,
-    address engine,
+    IPoolDataProvider poolDataProvider,
+    IEngine engine,
     address riskCouncil,
-    address owner,
     Config memory riskConfig
-  ) Ownable(owner) {
-    POOL = IPool(pool);
-    CONFIG_ENGINE = IEngine(engine);
+  ) Ownable(msg.sender) {
+    POOL_DATA_PROVIDER = poolDataProvider;
+    CONFIG_ENGINE = engine;
     RISK_COUNCIL = riskCouncil;
     _riskConfig = riskConfig;
   }
@@ -110,7 +106,7 @@ contract RiskSteward is Ownable, IRiskSteward {
 
   /// @inheritdoc IRiskSteward
   function getTimelock(address asset) external view returns (Debounce memory) {
-    return _timelocks[bytes20(asset)];
+    return _timelocks[asset];
   }
 
   /// @inheritdoc IRiskSteward
@@ -149,14 +145,16 @@ contract RiskSteward is Ownable, IRiskSteward {
       if (capsUpdate[i].supplyCap == 0 || capsUpdate[i].borrowCap == 0)
         revert InvalidUpdateToZero();
 
-      (uint256 currentBorrowCap, uint256 currentSupplyCap) = POOL.getConfiguration(asset).getCaps();
+      (uint256 currentBorrowCap, uint256 currentSupplyCap) = POOL_DATA_PROVIDER.getReserveCaps(
+        capsUpdate[i].asset
+      );
 
       _validateParamUpdate(
         ParamUpdateValidationInput({
           currentValue: currentSupplyCap,
           newValue: capsUpdate[i].supplyCap,
-          lastUpdated: _timelocks[bytes20(asset)].supplyCapLastUpdated,
-          riskConfig: _riskConfig.capConfig.supplyCap,
+          lastUpdated: _timelocks[asset].supplyCapLastUpdated,
+          riskConfig: _riskConfig.supplyCap,
           isChangeRelative: true
         })
       );
@@ -164,8 +162,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentBorrowCap,
           newValue: capsUpdate[i].borrowCap,
-          lastUpdated: _timelocks[bytes20(asset)].borrowCapLastUpdated,
-          riskConfig: _riskConfig.capConfig.borrowCap,
+          lastUpdated: _timelocks[asset].borrowCapLastUpdated,
+          riskConfig: _riskConfig.borrowCap,
           isChangeRelative: true
         })
       );
@@ -194,8 +192,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentOptimalUsageRatio,
           newValue: ratesUpdate[i].params.optimalUsageRatio,
-          lastUpdated: _timelocks[bytes20(asset)].optimalUsageRatioLastUpdated,
-          riskConfig: _riskConfig.rateConfig.optimalUsageRatio,
+          lastUpdated: _timelocks[asset].optimalUsageRatioLastUpdated,
+          riskConfig: _riskConfig.optimalUsageRatio,
           isChangeRelative: false
         })
       );
@@ -203,8 +201,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentBaseVariableBorrowRate,
           newValue: ratesUpdate[i].params.baseVariableBorrowRate,
-          lastUpdated: _timelocks[bytes20(asset)].baseVariableRateLastUpdated,
-          riskConfig: _riskConfig.rateConfig.baseVariableBorrowRate,
+          lastUpdated: _timelocks[asset].baseVariableRateLastUpdated,
+          riskConfig: _riskConfig.baseVariableBorrowRate,
           isChangeRelative: false
         })
       );
@@ -212,8 +210,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentVariableRateSlope1,
           newValue: ratesUpdate[i].params.variableRateSlope1,
-          lastUpdated: _timelocks[bytes20(asset)].variableRateSlope1LastUpdated,
-          riskConfig: _riskConfig.rateConfig.variableRateSlope1,
+          lastUpdated: _timelocks[asset].variableRateSlope1LastUpdated,
+          riskConfig: _riskConfig.variableRateSlope1,
           isChangeRelative: false
         })
       );
@@ -221,8 +219,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentVariableRateSlope2,
           newValue: ratesUpdate[i].params.variableRateSlope2,
-          lastUpdated: _timelocks[bytes20(asset)].variableRateSlope2LastUpdated,
-          riskConfig: _riskConfig.rateConfig.variableRateSlope2,
+          lastUpdated: _timelocks[asset].variableRateSlope2LastUpdated,
+          riskConfig: _riskConfig.variableRateSlope2,
           isChangeRelative: false
         })
       );
@@ -251,21 +249,26 @@ contract RiskSteward is Ownable, IRiskSteward {
         collateralUpdates[i].debtCeiling == 0
       ) revert InvalidUpdateToZero();
 
-      DataTypes.ReserveConfigurationMap memory configuration = POOL.getConfiguration(asset);
       (
+        ,
         uint256 currentLtv,
         uint256 currentLiquidationThreshold,
         uint256 currentLiquidationBonus,
         ,
-      ) = configuration.getParams();
-      uint256 currentDebtCeiling = configuration.getDebtCeiling();
+        ,
+        ,
+        ,
+        ,
+
+      ) = POOL_DATA_PROVIDER.getReserveConfigurationData(asset);
+      uint256 currentDebtCeiling = POOL_DATA_PROVIDER.getDebtCeiling(asset);
 
       _validateParamUpdate(
         ParamUpdateValidationInput({
           currentValue: currentLtv,
           newValue: collateralUpdates[i].ltv,
-          lastUpdated: _timelocks[bytes20(asset)].ltvLastUpdated,
-          riskConfig: _riskConfig.collateralConfig.ltv,
+          lastUpdated: _timelocks[asset].ltvLastUpdated,
+          riskConfig: _riskConfig.ltv,
           isChangeRelative: false
         })
       );
@@ -273,8 +276,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentLiquidationThreshold,
           newValue: collateralUpdates[i].liqThreshold,
-          lastUpdated: _timelocks[bytes20(asset)].liquidationThresholdLastUpdated,
-          riskConfig: _riskConfig.collateralConfig.liquidationThreshold,
+          lastUpdated: _timelocks[asset].liquidationThresholdLastUpdated,
+          riskConfig: _riskConfig.liquidationThreshold,
           isChangeRelative: false
         })
       );
@@ -282,8 +285,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentLiquidationBonus - 100_00, // as the definition is 100% + x%, and config engine takes into account x% for simplicity.
           newValue: collateralUpdates[i].liqBonus,
-          lastUpdated: _timelocks[bytes20(asset)].liquidationBonusLastUpdated,
-          riskConfig: _riskConfig.collateralConfig.liquidationBonus,
+          lastUpdated: _timelocks[asset].liquidationBonusLastUpdated,
+          riskConfig: _riskConfig.liquidationBonus,
           isChangeRelative: false
         })
       );
@@ -291,8 +294,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentDebtCeiling / 100, // as the definition is with 2 decimals, and config engine does not take the decimals into account.
           newValue: collateralUpdates[i].debtCeiling,
-          lastUpdated: _timelocks[bytes20(asset)].debtCeilingLastUpdated,
-          riskConfig: _riskConfig.collateralConfig.debtCeiling,
+          lastUpdated: _timelocks[asset].debtCeilingLastUpdated,
+          riskConfig: _riskConfig.debtCeiling,
           isChangeRelative: true
         })
       );
@@ -329,8 +332,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentMaxYearlyGrowthPercent,
           newValue: priceCapsUpdate[i].priceCapUpdateParams.maxYearlyRatioGrowthPercent,
-          lastUpdated: _timelocks[bytes20(oracle)].priceCapLastUpdated,
-          riskConfig: _riskConfig.priceCapConfig.priceCapLst,
+          lastUpdated: _timelocks[oracle].priceCapLastUpdated,
+          riskConfig: _riskConfig.priceCapLst,
           isChangeRelative: true
         })
       );
@@ -359,8 +362,8 @@ contract RiskSteward is Ownable, IRiskSteward {
         ParamUpdateValidationInput({
           currentValue: currentPriceCap.toUint256(),
           newValue: priceCapsUpdate[i].priceCap,
-          lastUpdated: _timelocks[bytes20(oracle)].priceCapLastUpdated,
-          riskConfig: _riskConfig.priceCapConfig.priceCapStable,
+          lastUpdated: _timelocks[oracle].priceCapLastUpdated,
+          riskConfig: _riskConfig.priceCapStable,
           isChangeRelative: true
         })
       );
@@ -395,11 +398,11 @@ contract RiskSteward is Ownable, IRiskSteward {
       address asset = capsUpdate[i].asset;
 
       if (capsUpdate[i].supplyCap != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].supplyCapLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].supplyCapLastUpdated = uint40(block.timestamp);
       }
 
       if (capsUpdate[i].borrowCap != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].borrowCapLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].borrowCapLastUpdated = uint40(block.timestamp);
       }
     }
 
@@ -417,19 +420,19 @@ contract RiskSteward is Ownable, IRiskSteward {
       address asset = ratesUpdate[i].asset;
 
       if (ratesUpdate[i].params.optimalUsageRatio != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].optimalUsageRatioLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].optimalUsageRatioLastUpdated = uint40(block.timestamp);
       }
 
       if (ratesUpdate[i].params.baseVariableBorrowRate != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].baseVariableRateLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].baseVariableRateLastUpdated = uint40(block.timestamp);
       }
 
       if (ratesUpdate[i].params.variableRateSlope1 != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].variableRateSlope1LastUpdated = uint40(block.timestamp);
+        _timelocks[asset].variableRateSlope1LastUpdated = uint40(block.timestamp);
       }
 
       if (ratesUpdate[i].params.variableRateSlope2 != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].variableRateSlope2LastUpdated = uint40(block.timestamp);
+        _timelocks[asset].variableRateSlope2LastUpdated = uint40(block.timestamp);
       }
     }
 
@@ -447,19 +450,19 @@ contract RiskSteward is Ownable, IRiskSteward {
       address asset = collateralUpdates[i].asset;
 
       if (collateralUpdates[i].ltv != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].ltvLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].ltvLastUpdated = uint40(block.timestamp);
       }
 
       if (collateralUpdates[i].liqThreshold != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].liquidationThresholdLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].liquidationThresholdLastUpdated = uint40(block.timestamp);
       }
 
       if (collateralUpdates[i].liqBonus != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].liquidationBonusLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].liquidationBonusLastUpdated = uint40(block.timestamp);
       }
 
       if (collateralUpdates[i].debtCeiling != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(asset)].debtCeilingLastUpdated = uint40(block.timestamp);
+        _timelocks[asset].debtCeilingLastUpdated = uint40(block.timestamp);
       }
     }
 
@@ -476,7 +479,7 @@ contract RiskSteward is Ownable, IRiskSteward {
     for (uint256 i = 0; i < priceCapsUpdate.length; i++) {
       address oracle = priceCapsUpdate[i].oracle;
 
-      _timelocks[bytes20(oracle)].priceCapLastUpdated = uint40(block.timestamp);
+      _timelocks[oracle].priceCapLastUpdated = uint40(block.timestamp);
 
       IPriceCapAdapter(oracle).setCapParameters(priceCapsUpdate[i].priceCapUpdateParams);
 
@@ -492,7 +495,7 @@ contract RiskSteward is Ownable, IRiskSteward {
     for (uint256 i = 0; i < priceCapsUpdate.length; i++) {
       address oracle = priceCapsUpdate[i].oracle;
 
-      _timelocks[bytes20(oracle)].priceCapLastUpdated = uint40(block.timestamp);
+      _timelocks[oracle].priceCapLastUpdated = uint40(block.timestamp);
 
       IPriceCapAdapterStable(oracle).setPriceCap(priceCapsUpdate[i].priceCap.toInt256());
     }
@@ -518,7 +521,7 @@ contract RiskSteward is Ownable, IRiskSteward {
       uint256 variableRateSlope2
     )
   {
-    address rateStrategyAddress = POOL.getReserveData(asset).interestRateStrategyAddress;
+    address rateStrategyAddress = POOL_DATA_PROVIDER.getInterestRateStrategyAddress(asset);
     IDefaultInterestRateStrategyV2.InterestRateData
       memory interestRateData = IDefaultInterestRateStrategyV2(rateStrategyAddress)
         .getInterestRateDataBps(asset);
