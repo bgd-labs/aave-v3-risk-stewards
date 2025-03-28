@@ -40,13 +40,6 @@ contract EdgeRiskStewardCaps is RiskSteward {
   }
 
   /// @inheritdoc IRiskSteward
-  function updateEModeCategories(
-    IEngine.EModeCategoryUpdate[] calldata
-  ) external virtual override onlyRiskCouncil {
-    revert UpdateNotAllowed();
-  }
-
-  /// @inheritdoc IRiskSteward
   function updateLstPriceCaps(
     PriceCapLstUpdate[] calldata
   ) external virtual override onlyRiskCouncil {

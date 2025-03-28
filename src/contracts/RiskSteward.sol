@@ -42,8 +42,6 @@ contract RiskSteward is Ownable, IRiskSteward {
 
   mapping(address => bool) internal _restrictedAddresses;
 
-  mapping(uint8 => bool) internal _restrictedEModes;
-
   /**
    * @dev Modifier preventing anyone, but the council to update risk params.
    */
@@ -95,14 +93,6 @@ contract RiskSteward is Ownable, IRiskSteward {
   }
 
   /// @inheritdoc IRiskSteward
-  function updateEModeCategories(
-    IEngine.EModeCategoryUpdate[] calldata eModeCategoryUpdates
-  ) external virtual onlyRiskCouncil {
-    _validateEModeCategoryUpdate(eModeCategoryUpdates);
-    _updateEModeCategories(eModeCategoryUpdates);
-  }
-
-  /// @inheritdoc IRiskSteward
   function updateLstPriceCaps(
     PriceCapLstUpdate[] calldata priceCapUpdates
   ) external virtual onlyRiskCouncil {
@@ -121,11 +111,6 @@ contract RiskSteward is Ownable, IRiskSteward {
   /// @inheritdoc IRiskSteward
   function getTimelock(address asset) external view returns (Debounce memory) {
     return _timelocks[bytes20(asset)];
-  }
-
-  /// @inheritdoc IRiskSteward
-  function getEModeTimelock(uint8 eModeCategoryId) external view returns (Debounce memory) {
-    return _timelocks[bytes20(uint160(eModeCategoryId))];
   }
 
   /// @inheritdoc IRiskSteward
@@ -148,17 +133,6 @@ contract RiskSteward is Ownable, IRiskSteward {
   function setAddressRestricted(address contractAddress, bool isRestricted) external onlyOwner {
     _restrictedAddresses[contractAddress] = isRestricted;
     emit AddressRestricted(contractAddress, isRestricted);
-  }
-
-  /// @inheritdoc IRiskSteward
-  function isEModeCategoryRestricted(uint8 eModeCategoryId) external view returns (bool) {
-    return _restrictedEModes[eModeCategoryId];
-  }
-
-  /// @inheritdoc IRiskSteward
-  function setEModeCategoryRestricted(uint8 eModeCategoryId, bool isRestricted) external onlyOwner {
-    _restrictedEModes[eModeCategoryId] = isRestricted;
-    emit EModeRestricted(eModeCategoryId, isRestricted);
   }
 
   /**
@@ -320,57 +294,6 @@ contract RiskSteward is Ownable, IRiskSteward {
           lastUpdated: _timelocks[bytes20(asset)].debtCeilingLastUpdated,
           riskConfig: _riskConfig.collateralConfig.debtCeiling,
           isChangeRelative: true
-        })
-      );
-    }
-  }
-
-  /**
-   * @notice method to validate the eMode category update
-   * @param eModeCategoryUpdates list containing the new eMode category updates
-   */
-  function _validateEModeCategoryUpdate(
-    IEngine.EModeCategoryUpdate[] calldata eModeCategoryUpdates
-  ) internal view {
-    if (eModeCategoryUpdates.length == 0) revert NoZeroUpdates();
-
-    for (uint256 i = 0; i < eModeCategoryUpdates.length; i++) {
-      uint8 eModeId = eModeCategoryUpdates[i].eModeCategory;
-      if (_restrictedEModes[eModeId]) revert EModeIsRestricted();
-
-      if (
-        eModeCategoryUpdates[i].ltv == 0 ||
-        eModeCategoryUpdates[i].liqThreshold == 0 ||
-        eModeCategoryUpdates[i].liqBonus == 0
-      ) revert InvalidUpdateToZero();
-
-      DataTypes.CollateralConfig memory currentEmodeConfig = POOL.getEModeCategoryCollateralConfig(eModeId);
-
-      _validateParamUpdate(
-        ParamUpdateValidationInput({
-          currentValue: currentEmodeConfig.ltv,
-          newValue: eModeCategoryUpdates[i].ltv,
-          lastUpdated: _timelocks[bytes20(uint160(eModeId))].eModeLtvLastUpdated,
-          riskConfig: _riskConfig.eModeConfig.ltv,
-          isChangeRelative: false
-        })
-      );
-      _validateParamUpdate(
-        ParamUpdateValidationInput({
-          currentValue: currentEmodeConfig.liquidationThreshold,
-          newValue: eModeCategoryUpdates[i].liqThreshold,
-          lastUpdated: _timelocks[bytes20(uint160(eModeId))].eModeLiquidationThresholdLastUpdated,
-          riskConfig: _riskConfig.eModeConfig.liquidationThreshold,
-          isChangeRelative: false
-        })
-      );
-      _validateParamUpdate(
-        ParamUpdateValidationInput({
-          currentValue: currentEmodeConfig.liquidationBonus - 100_00, // as the definition is 100% + x%, and config engine takes into account x% for simplicity.
-          newValue: eModeCategoryUpdates[i].liqBonus,
-          lastUpdated: _timelocks[bytes20(uint160(eModeId))].eModeLiquidationBonusLastUpdated,
-          riskConfig: _riskConfig.eModeConfig.liquidationBonus,
-          isChangeRelative: false
         })
       );
     }
@@ -542,32 +465,6 @@ contract RiskSteward is Ownable, IRiskSteward {
 
     address(CONFIG_ENGINE).functionDelegateCall(
       abi.encodeWithSelector(CONFIG_ENGINE.updateCollateralSide.selector, collateralUpdates)
-    );
-  }
-
-  /**
-   * @notice method to update the eMode category params using the config engine and updates the debounce
-   * @param eModeCategoryUpdates list containing the new eMode category params of the eMode category id
-   */
-  function _updateEModeCategories(IEngine.EModeCategoryUpdate[] calldata eModeCategoryUpdates) internal {
-    for (uint256 i = 0; i < eModeCategoryUpdates.length; i++) {
-      uint8 eModeId = eModeCategoryUpdates[i].eModeCategory;
-
-      if (eModeCategoryUpdates[i].ltv != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(uint160(eModeId))].eModeLtvLastUpdated = uint40(block.timestamp);
-      }
-
-      if (eModeCategoryUpdates[i].liqThreshold != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(uint160(eModeId))].eModeLiquidationThresholdLastUpdated = uint40(block.timestamp);
-      }
-
-      if (eModeCategoryUpdates[i].liqBonus != EngineFlags.KEEP_CURRENT) {
-        _timelocks[bytes20(uint160(eModeId))].eModeLiquidationBonusLastUpdated = uint40(block.timestamp);
-      }
-    }
-
-    address(CONFIG_ENGINE).functionDelegateCall(
-      abi.encodeWithSelector(CONFIG_ENGINE.updateEModeCategories.selector, eModeCategoryUpdates)
     );
   }
 
