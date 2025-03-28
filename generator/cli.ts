@@ -13,7 +13,6 @@ import {
 import {capsUpdates} from './features/capsUpdates';
 import {rateUpdatesV3} from './features/rateUpdates';
 import {collateralsUpdates} from './features/collateralsUpdates';
-import {eModeUpdates} from './features/eModeUpdates';
 import {lstPriceCapsUpdates} from './features/lstPriceCapsUpdates';
 import {stablePriceCapsUpdates} from './features/stablePriceCapsUpdates';
 import {generateFiles, writeFiles} from './generator';
@@ -43,8 +42,7 @@ const FEATURE_MODULES_V3 = [
   capsUpdates,
   collateralsUpdates,
   lstPriceCapsUpdates,
-  stablePriceCapsUpdates,
-  eModeUpdates
+  stablePriceCapsUpdates
 ];
 
 async function generateDeterministicPoolCache(pool: PoolIdentifier): Promise<PoolCache> {

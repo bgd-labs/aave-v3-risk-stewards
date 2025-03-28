@@ -34,10 +34,13 @@ export async function eModeSelect<T extends boolean>({
   pool,
 }: EModeSelectPrompt<T>) {
   const eModes = getEModes(pool as any);
-  if (eModes.length != 0) {
+  if (Object.keys(eModes).length != 0) {
     const eMode = await select({
       message,
-      choices: eModes,
+      choices: [
+        ...(disableKeepCurrent ? [] : [{value: ENGINE_FLAGS.KEEP_CURRENT}]),
+        ...Object.keys(eModes).map((eMode) => ({value: eMode})),
+      ],
     });
     return translateEModeToEModeLib(eMode, pool);
   } else {
@@ -48,10 +51,14 @@ export async function eModeSelect<T extends boolean>({
 
 export async function eModesSelect<T extends boolean>({message, pool}: EModeSelectPrompt<T>) {
   const eModes = getEModes(pool as any);
-  if (eModes.length != 0) {
+  if (Object.keys(eModes).length != 0) {
     const values = await checkbox({
       message,
-      choices: eModes,
+      choices: [
+        ...Object.keys(eModes)
+          .filter((e) => e != 'NONE')
+          .map((eMode) => ({value: eMode})),
+      ],
       required: true,
     });
     return values.map((mode) => translateEModeToEModeLib(mode, pool));

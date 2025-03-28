@@ -12,7 +12,7 @@ abstract contract RiskStewardsBase is ProtocolV3TestBase {
   IPool immutable POOL;
   IRiskSteward immutable STEWARD;
 
-  uint8 public constant MAX_TX = 6;
+  uint8 public constant MAX_TX = 5;
 
   constructor(address pool, address steward) {
     POOL = IPool(pool);
@@ -28,13 +28,6 @@ abstract contract RiskStewardsBase is ProtocolV3TestBase {
     pure
     virtual
     returns (IEngine.RateStrategyUpdate[] memory)
-  {}
-
-  function eModeCategoriesUpdates()
-    public
-    pure
-    virtual
-    returns (IEngine.EModeCategoryUpdate[] memory)
   {}
 
   function lstPriceCapsUpdates()
@@ -90,7 +83,6 @@ abstract contract RiskStewardsBase is ProtocolV3TestBase {
 
     IEngine.CapsUpdate[] memory capUpdates = capsUpdates();
     IEngine.CollateralUpdate[] memory collateralUpdates = collateralsUpdates();
-    IEngine.EModeCategoryUpdate[] memory eModeUpdates = eModeCategoriesUpdates();
     IEngine.RateStrategyUpdate[] memory rateUpdates = rateStrategiesUpdates();
     IRiskSteward.PriceCapLstUpdate[] memory lstPriceCapUpdates = lstPriceCapsUpdates();
     IRiskSteward.PriceCapStableUpdate[] memory stablePriceCapUpdates = stablePriceCapsUpdates();
@@ -98,7 +90,7 @@ abstract contract RiskStewardsBase is ProtocolV3TestBase {
     if (skipTimelock) {
       // warp to the max timelock
 
-      uint40[] memory timelocks = new uint40[](15);
+      uint40[] memory timelocks = new uint40[](12);
       uint256 index = 0; // Track the current index for adding elements
 
       IRiskSteward.Config memory riskConfig = STEWARD.getRiskConfig();
@@ -111,11 +103,6 @@ abstract contract RiskStewardsBase is ProtocolV3TestBase {
         timelocks[index++] = riskConfig.collateralConfig.liquidationThreshold.minDelay;
         timelocks[index++] = riskConfig.collateralConfig.liquidationBonus.minDelay;
         timelocks[index++] = riskConfig.collateralConfig.debtCeiling.minDelay;
-      }
-      if (eModeUpdates.length != 0) {
-        timelocks[index++] = riskConfig.eModeConfig.ltv.minDelay;
-        timelocks[index++] = riskConfig.eModeConfig.liquidationThreshold.minDelay;
-        timelocks[index++] = riskConfig.eModeConfig.liquidationBonus.minDelay;
       }
       if (rateUpdates.length != 0) {
         timelocks[index++] = riskConfig.rateConfig.baseVariableBorrowRate.minDelay;
@@ -152,16 +139,6 @@ abstract contract RiskStewardsBase is ProtocolV3TestBase {
       callDatas[txCount] = abi.encodeWithSelector(
         IRiskSteward.updateCollateralSide.selector,
         collateralUpdates
-      );
-      (bool success, bytes memory resultData) = address(STEWARD).call(callDatas[txCount]);
-      _verifyCallResult(success, resultData);
-      txCount++;
-    }
-
-    if (eModeUpdates.length != 0) {
-      callDatas[txCount] = abi.encodeWithSelector(
-        IRiskSteward.updateEModeCategories.selector,
-        eModeUpdates
       );
       (bool success, bytes memory resultData) = address(STEWARD).call(callDatas[txCount]);
       _verifyCallResult(success, resultData);
