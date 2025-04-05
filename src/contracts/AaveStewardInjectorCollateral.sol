@@ -8,15 +8,14 @@ import {IAaveV3ConfigEngine as IEngine} from 'aave-v3-origin/src/contracts/exten
 import {EngineFlags} from 'aave-v3-origin/src/contracts/extensions/v3-config-engine/EngineFlags.sol';
 import {Strings} from 'openzeppelin-contracts/contracts/utils/Strings.sol';
 import {IAToken} from 'aave-v3-origin/src/contracts/interfaces/IAToken.sol';
-import {IERC20Metadata} from 'openzeppelin-contracts/contracts/interfaces/IERC20Metadata.sol';
 
 /**
- * @title AaveStewardInjectorCaps
+ * @title AaveStewardInjectorCollateral
  * @author BGD Labs
- * @notice Aave chainlink automation-keeper-compatible contract to perform caps update injection
+ * @notice Aave chainlink automation-keeper-compatible contract to perform collateral update injection
  *         on risk steward using the edge risk oracle.
  */
-contract AaveStewardInjectorCaps is AaveStewardInjectorBase {
+contract AaveStewardInjectorCollateral is AaveStewardInjectorBase {
   using Strings for string;
 
   /**
@@ -34,9 +33,10 @@ contract AaveStewardInjectorCaps is AaveStewardInjectorBase {
 
   /// @inheritdoc AaveStewardInjectorBase
   function getUpdateTypes() public pure override returns (string[] memory updateTypes) {
-    updateTypes = new string[](2);
-    updateTypes[0] = 'supplyCap';
-    updateTypes[1] = 'borrowCap';
+    updateTypes = new string[](3);
+    updateTypes[0] = 'ltv';
+    updateTypes[1] = 'liquidationThreshold';
+    updateTypes[2] = 'liquidationBonus';
   }
 
   /// @inheritdoc AaveStewardInjectorBase
@@ -44,23 +44,38 @@ contract AaveStewardInjectorCaps is AaveStewardInjectorBase {
     IRiskOracle.RiskParameterUpdate memory riskParams
   ) internal override {
     address underlyingAddress = IAToken(riskParams.market).UNDERLYING_ASSET_ADDRESS();
-    uint256 capValue =  uint256(bytes32(riskParams.newValue)) / (10 ** IERC20Metadata(riskParams.market).decimals());
+    uint256 collateralValue = uint256(bytes32(riskParams.newValue));
 
-    IEngine.CapsUpdate[] memory capUpdate = new IEngine.CapsUpdate[](1);
-    if (riskParams.updateType.equal('supplyCap')) {
-      capUpdate[0] = IEngine.CapsUpdate({
+    IEngine.CollateralUpdate[] memory collateralUpdate = new IEngine.CollateralUpdate[](1);
+    if (riskParams.updateType.equal('ltv')) {
+      collateralUpdate[0] = IEngine.CollateralUpdate({
         asset: underlyingAddress,
-        supplyCap: capValue,
-        borrowCap: EngineFlags.KEEP_CURRENT
+        ltv: collateralValue,
+        liqThreshold: EngineFlags.KEEP_CURRENT,
+        liqBonus: EngineFlags.KEEP_CURRENT,
+        debtCeiling: EngineFlags.KEEP_CURRENT,
+        liqProtocolFee: EngineFlags.KEEP_CURRENT
+      });
+    } else if (riskParams.updateType.equal('liquidationThreshold')) {
+      collateralUpdate[0] = IEngine.CollateralUpdate({
+        asset: underlyingAddress,
+        ltv: EngineFlags.KEEP_CURRENT,
+        liqThreshold: collateralValue,
+        liqBonus: EngineFlags.KEEP_CURRENT,
+        debtCeiling: EngineFlags.KEEP_CURRENT,
+        liqProtocolFee: EngineFlags.KEEP_CURRENT
       });
     } else {
-      capUpdate[0] = IEngine.CapsUpdate({
+      collateralUpdate[0] = IEngine.CollateralUpdate({
         asset: underlyingAddress,
-        supplyCap: EngineFlags.KEEP_CURRENT,
-        borrowCap: capValue
+        ltv: EngineFlags.KEEP_CURRENT,
+        liqThreshold: EngineFlags.KEEP_CURRENT,
+        liqBonus: collateralValue,
+        debtCeiling: EngineFlags.KEEP_CURRENT,
+        liqProtocolFee: EngineFlags.KEEP_CURRENT
       });
     }
 
-    IRiskSteward(RISK_STEWARD).updateCaps(capUpdate);
+    IRiskSteward(RISK_STEWARD).updateCollateralSide(collateralUpdate);
   }
 }

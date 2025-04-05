@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {AaveStewardInjectorCaps} from '../src/contracts/AaveStewardInjectorCaps.sol';
+import {AaveStewardInjectorCollateral} from '../src/contracts/AaveStewardInjectorCollateral.sol';
 import {IAaveStewardInjectorBase} from '../src/interfaces/IAaveStewardInjectorBase.sol';
-import {EdgeRiskStewardCaps} from '../src/contracts/EdgeRiskStewardCaps.sol';
+import {EdgeRiskStewardCollateral} from '../src/contracts/EdgeRiskStewardCollateral.sol';
 import './AaveStewardsInjectorBase.t.sol';
 
-contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
-  event MarketAdded(address indexed market);
-  event MarketRemoved(address indexed market);
-
+contract AaveStewardsInjectorCollateral_Test is AaveStewardsInjectorBaseTest {
   address internal _aWETH;
   address internal _aWBTC;
 
@@ -17,21 +14,23 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
     super.setUp();
 
     IRiskSteward.RiskParamConfig memory defaultRiskParamConfig = IRiskSteward.RiskParamConfig({
-      minDelay: 3 days,
-      maxPercentChange: 100_00
+      minDelay: 1 days,
+      maxPercentChange: 25 // 0.25% change allowed
     });
     IRiskSteward.Config memory riskConfig;
-    riskConfig.capConfig.supplyCap = defaultRiskParamConfig;
-    riskConfig.capConfig.borrowCap = defaultRiskParamConfig;
+    riskConfig.collateralConfig.ltv = defaultRiskParamConfig;
+    riskConfig.collateralConfig.liquidationThreshold = defaultRiskParamConfig;
+    riskConfig.collateralConfig.liquidationBonus = defaultRiskParamConfig;
 
     // setup risk oracle
     vm.startPrank(_riskOracleOwner);
     address[] memory initialSenders = new address[](1);
     initialSenders[0] = _riskOracleOwner;
-    string[] memory initialUpdateTypes = new string[](3);
-    initialUpdateTypes[0] = 'supplyCap';
-    initialUpdateTypes[1] = 'borrowCap';
-    initialUpdateTypes[2] = 'wrongUpdateType';
+    string[] memory initialUpdateTypes = new string[](4);
+    initialUpdateTypes[0] = 'ltv';
+    initialUpdateTypes[1] = 'liquidationThreshold';
+    initialUpdateTypes[2] = 'liquidationBonus';
+    initialUpdateTypes[3] = 'wrongUpdateType';
 
     _riskOracle = new RiskOracle('RiskOracle', initialSenders, initialUpdateTypes);
     vm.stopPrank();
@@ -43,7 +42,7 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
       _stewardsInjectorOwner,
       vm.getNonce(_stewardsInjectorOwner) + 1
     );
-    _stewardInjector = new AaveStewardInjectorCaps(
+    _stewardInjector = new AaveStewardInjectorCollateral(
       address(_riskOracle),
       address(computedRiskStewardAddress),
       _stewardsInjectorOwner,
@@ -51,7 +50,7 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
     );
 
     // setup risk steward
-    _riskSteward = new EdgeRiskStewardCaps(
+    _riskSteward = new EdgeRiskStewardCollateral(
       address(contracts.poolProxy),
       report.configEngine,
       address(_stewardInjector),
@@ -66,21 +65,14 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
 
     _addMarket(_aWETH);
 
-    vm.startPrank(poolAdmin);
+    vm.prank(poolAdmin);
     contracts.aclManager.addRiskAdmin(address(_riskSteward));
-
-    // as initial caps are at 0, which the steward cannot update from
-    contracts.poolConfiguratorProxy.setSupplyCap(address(weth), 100);
-    contracts.poolConfiguratorProxy.setBorrowCap(address(weth), 50);
-    contracts.poolConfiguratorProxy.setSupplyCap(address(wbtc), 100);
-    contracts.poolConfiguratorProxy.setBorrowCap(address(wbtc), 50);
-    vm.stopPrank();
   }
 
   function test_multipleMarketInjection() public {
     _addMarket(_aWBTC);
-    _addUpdateToRiskOracle(_aWETH, 'supplyCap', _encode(105e18));
-    _addUpdateToRiskOracle(_aWBTC, 'supplyCap', _encode(105e8));
+    _addUpdateToRiskOracle(_aWETH, 'ltv', _encode(82_75));
+    _addUpdateToRiskOracle(_aWBTC, 'ltv', _encode(82_75));
 
     vm.expectEmit(address(_stewardInjector));
     emit IAaveStewardInjectorBase.ActionSucceeded(1);
@@ -92,24 +84,29 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
   }
 
   function test_multipleUpdateTypeInjection() public {
-    _addUpdateToRiskOracle(_aWETH, 'supplyCap', _encode(105e18));
-    _addUpdateToRiskOracle(_aWETH, 'borrowCap', _encode(55e18));
+    _addUpdateToRiskOracle(_aWETH, 'ltv', _encode(82_75));
+    _addUpdateToRiskOracle(_aWETH, 'liquidationThreshold', _encode(86_25));
+    _addUpdateToRiskOracle(_aWETH, 'liquidationBonus', _encode(5_25));
+
+    vm.expectEmit(address(_stewardInjector));
+    emit IAaveStewardInjectorBase.ActionSucceeded(2);
+    assertTrue(_checkAndPerformAutomation());
 
     vm.expectEmit(address(_stewardInjector));
     emit IAaveStewardInjectorBase.ActionSucceeded(1);
     assertTrue(_checkAndPerformAutomation());
 
     vm.expectEmit(address(_stewardInjector));
-    emit IAaveStewardInjectorBase.ActionSucceeded(2);
+    emit IAaveStewardInjectorBase.ActionSucceeded(3);
     assertTrue(_checkAndPerformAutomation());
   }
 
   function test_randomized_multipleMarketInjection() public {
     _addMarket(_aWBTC);
-    _addUpdateToRiskOracle(_aWETH, 'supplyCap', _encode(105e18));
-    _addUpdateToRiskOracle(_aWETH, 'borrowCap', _encode(55e18));
-    _addUpdateToRiskOracle(_aWBTC, 'supplyCap', _encode(105e8));
-    _addUpdateToRiskOracle(_aWBTC, 'borrowCap', _encode(55e8));
+    _addUpdateToRiskOracle(_aWETH, 'ltv', _encode(82_75));
+    _addUpdateToRiskOracle(_aWETH, 'liquidationThreshold', _encode(86_25));
+    _addUpdateToRiskOracle(_aWBTC, 'ltv', _encode(82_70));
+    _addUpdateToRiskOracle(_aWBTC, 'liquidationThreshold', _encode(86_20));
 
     uint256 snapshot = vm.snapshotState();
 
@@ -188,12 +185,12 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
 
   function _addUpdateToRiskOracle() internal override returns (string memory updateType, address market) {
     vm.startPrank(_riskOracleOwner);
-    updateType = 'supplyCap';
+    updateType = 'ltv';
     market = _aWETH;
 
     _riskOracle.publishRiskParameterUpdate(
       'referenceId',
-      _encode(105e18),
+      _encode(82_75),
       updateType,
       market,
       'additionalData'
@@ -203,11 +200,11 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
 
   function _addUpdateToRiskOracle(address market) internal override returns (string memory, address) {
     vm.startPrank(_riskOracleOwner);
-    string memory updateType = 'supplyCap';
+    string memory updateType = 'ltv';
 
     _riskOracle.publishRiskParameterUpdate(
       'referenceId',
-      _encode(105e18),
+      _encode(82_75),
       updateType,
       market,
       'additionalData'
@@ -222,7 +219,7 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
 
     _riskOracle.publishRiskParameterUpdate(
       'referenceId',
-      _encode(105e18),
+      _encode(82_75),
       updateType,
       market,
       'additionalData'
@@ -236,7 +233,7 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
     markets[0] = market;
 
     vm.prank(_stewardsInjectorOwner);
-    AaveStewardInjectorCaps(address(_stewardInjector)).addMarkets(markets);
+    AaveStewardInjectorCollateral(address(_stewardInjector)).addMarkets(markets);
   }
 
   function _addMultipleUpdatesToRiskOracleOfDifferentMarkets(uint160 count) internal {
@@ -246,15 +243,22 @@ contract AaveStewardsInjectorCaps_Test is AaveStewardsInjectorBaseTest {
       address market = address(i);
       _riskOracle.publishRiskParameterUpdate(
         'referenceId',
-        _encode(105e18),
-        'supplyCap',
+        _encode(82_50),
+        'ltv',
         market,
         'additionalData'
       );
       _riskOracle.publishRiskParameterUpdate(
         'referenceId',
-        _encode(55e18),
-        'borrowCap',
+        _encode(86_00),
+        'liquidationThreshold',
+        market,
+        'additionalData'
+      );
+      _riskOracle.publishRiskParameterUpdate(
+        'referenceId',
+        _encode(5_00),
+        'liquidationBonus',
         market,
         'additionalData'
       );
