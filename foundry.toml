@@ -56,6 +56,7 @@ zksync = "${RPC_ZKSYNC}"
 linea = "${RPC_LINEA}"
 sonic = "${RPC_SONIC}"
 celo = "${RPC_CELO}"
+mantle = "${RPC_MANTLE}"
 
 [etherscan]
 mainnet = { key="${ETHERSCAN_API_KEY_MAINNET}", chainId=1 }
@@ -74,5 +75,5 @@ zksync = { key="${ETHERSCAN_API_KEY_ZKSYNC}", chainId= 324 }
 linea = { key="${ETHERSCAN_API_KEY_LINEA}", chain = 59144 }
 sonic = { key="${ETHERSCAN_API_KEY_SONIC}", chain = 146 }
 celo = { key="${ETHERSCAN_API_KEY_CELO}", chain = 42220 }
-
+mantle = { key = "${ETHERSCAN_API_KEY_MANTLE}", chainId = 5000 }
 # See more config options https://github.com/gakonst/foundry/tree/master/config

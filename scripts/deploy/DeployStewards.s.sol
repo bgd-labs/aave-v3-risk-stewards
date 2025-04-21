@@ -30,6 +30,8 @@ import {AaveV3Sonic} from 'aave-address-book/AaveV3Sonic.sol';
 import {GovernanceV3Sonic} from 'aave-address-book/GovernanceV3Sonic.sol';
 import {AaveV3Celo} from 'aave-address-book/AaveV3Celo.sol';
 import {GovernanceV3Celo} from 'aave-address-book/GovernanceV3Celo.sol';
+import {AaveV3Mantle} from 'aave-address-book/AaveV3Mantle.sol';
+import {GovernanceV3Mantle} from 'aave-address-book/GovernanceV3Mantle.sol';
 import {IOwnable} from 'aave-address-book/common/IOwnable.sol';
 import {RiskSteward, IRiskSteward, IPoolDataProvider, IEngine} from '../../src/contracts/RiskSteward.sol';
 
@@ -55,10 +57,10 @@ library DeployRiskStewards {
   function _getRiskConfig() internal pure returns (IRiskSteward.Config memory) {
     return
       IRiskSteward.Config({
-        ltv: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 25}),
+        ltv: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 50}),
         liquidationThreshold: IRiskSteward.RiskParamConfig({
           minDelay: 3 days,
-          maxPercentChange: 25
+          maxPercentChange: 50
         }),
         liquidationBonus: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 50}),
         supplyCap: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 100_00}),
@@ -66,12 +68,12 @@ library DeployRiskStewards {
         debtCeiling: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 20_00}),
         baseVariableBorrowRate: IRiskSteward.RiskParamConfig({
           minDelay: 3 days,
-          maxPercentChange: 50
+          maxPercentChange: 1_00
         }),
-        variableRateSlope1: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 50}),
+        variableRateSlope1: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 1_00}),
         variableRateSlope2: IRiskSteward.RiskParamConfig({
           minDelay: 3 days,
-          maxPercentChange: 5_00
+          maxPercentChange: 20_00
         }),
         optimalUsageRatio: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 3_00}),
         priceCapLst: IRiskSteward.RiskParamConfig({minDelay: 3 days, maxPercentChange: 5_00}),
@@ -277,7 +279,7 @@ contract DeploySonic is SonicScript {
 }
 
 // make deploy-ledger contract=scripts/deploy/DeployStewards.s.sol:DeployCelo chain=celo
-contract DeployCelo is SonicScript {
+contract DeployCelo is CeloScript {
   function run() external {
     vm.startBroadcast();
     DeployRiskStewards._deployRiskStewards(
@@ -285,6 +287,20 @@ contract DeployCelo is SonicScript {
       AaveV3Celo.CONFIG_ENGINE,
       0xd85786B5FC61E2A0c0a3144a33A0fC70646a99f6, // celo-risk-council
       GovernanceV3Celo.EXECUTOR_LVL_1
+    );
+    vm.stopBroadcast();
+  }
+}
+
+// make deploy-ledger contract=scripts/deploy/DeployStewards.s.sol:DeployMantle chain=mantle
+contract DeployMantle is MantleScript {
+  function run() external {
+    vm.startBroadcast();
+    DeployRiskStewards._deployRiskStewards(
+      address(AaveV3Mantle.AAVE_PROTOCOL_DATA_PROVIDER),
+      AaveV3Mantle.CONFIG_ENGINE,
+      0xfF0ACe5060bd25f6900eb4bD91a868213C5346B5, // mantle-risk-council
+      GovernanceV3Mantle.EXECUTOR_LVL_1
     );
     vm.stopBroadcast();
   }
